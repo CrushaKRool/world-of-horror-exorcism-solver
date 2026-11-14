@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>World of Horror Exorcism Solver</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, sans-serif;
+      background: #171717;
+      color: #eee;
+    }
+
+    body {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2rem 1rem;
+    }
+
+    h1 { margin-bottom: 0.4rem; }
+    p { line-height: 1.5; color: #ccc; }
+
+    section {
+      margin: 1.25rem 0;
+      padding: 1rem;
+      border: 1px solid #444;
+      border-radius: 8px;
+      background: #222;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: end;
+      gap: 0.75rem;
+    }
+
+    label {
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    input, select, button {
+      font: inherit;
+      padding: 0.5rem 0.65rem;
+      border: 1px solid #666;
+      border-radius: 5px;
+      background: #111;
+      color: #eee;
+    }
+
+    button { cursor: pointer; }
+    button:hover { background: #333; }
+
+    #status { font-weight: 600; }
+    #candidates {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 0.5rem;
+      padding: 0;
+      list-style: none;
+    }
+
+    #candidates li, .guess-row {
+      padding: 0.55rem;
+      border-radius: 5px;
+      background: #303030;
+    }
+
+    .guess-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 0.5rem 0;
+    }
+
+    .sequence {
+      font-family: ui-monospace, monospace;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+    }
+
+    .muted { color: #aaa; }
+    .error { color: #ff9a9a; min-height: 1.5em; }
+  </style>
+</head>
+<body>
+  <h1>Exorcism Solver</h1>
+  <p>
+    Enter <strong>b</strong> for bow and <strong>c</strong> for clap.
+    A score is the number of actions in the correct position.
+  </p>
+
+  <section>
+    <h2>Confirmed first two actions</h2>
+    <div class="controls">
+      <label>
+        Position 1
+        <select id="first">
+          <option value="?">Unknown</option>
+          <option value="b">Bow (b)</option>
+          <option value="c">Clap (c)</option>
+        </select>
+      </label>
+      <label>
+        Position 2
+        <select id="second">
+          <option value="?">Unknown</option>
+          <option value="b">Bow (b)</option>
+          <option value="c">Clap (c)</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  <section>
+    <h2>Add a guess</h2>
+    <form id="guess-form" class="controls">
+      <label>
+        Your 5-action guess
+        <input id="guess" value="bbbbb" maxlength="5"
+               autocomplete="off" spellcheck="false"
+               aria-describedby="input-help">
+      </label>
+      <label>
+        Correct positions
+        <input id="score" type="number" min="0" max="5" value="0" required>
+      </label>
+      <button type="submit">Add guess</button>
+    </form>
+    <p id="input-help" class="muted">Use exactly five b's and c's, such as bcbcc.</p>
+    <p id="error" class="error" role="alert"></p>
+  </section>
+
+  <section>
+    <h2>Previous guesses</h2>
+    <div id="history"><p class="muted">No guesses entered yet.</p></div>
+    <button id="reset" type="button">Clear all</button>
+  </section>
+
+  <section>
+    <h2>Possible sequences</h2>
+    <p id="status" aria-live="polite"></p>
+    <ul id="candidates"></ul>
+  </section>
+
+  <script>
+    const guesses = [];
+
+    const firstSelect = document.querySelector("#first");
+    const secondSelect = document.querySelector("#second");
+    const guessInput = document.querySelector("#guess");
+    const scoreInput = document.querySelector("#score");
+    const error = document.querySelector("#error");
+    const historyElement = document.querySelector("#history");
+    const statusElement = document.querySelector("#status");
+    const candidatesElement = document.querySelector("#candidates");
+
+    function getCandidates() {
+      const candidates = [];
+
+      // There are only 2^5 = 32 possible sequences.
+      for (let mask = 0; mask < 32; mask++) {
+        const sequence = Array.from(
+          { length: 5 },
+          (_, position) => (mask >> position) & 1 ? "c" : "b"
+        ).join("");
+
+        if (firstSelect.value !== "?" && sequence[0] !== firstSelect.value) {
+          continue;
+        }
+        if (secondSelect.value !== "?" && sequence[1] !== secondSelect.value) {
+          continue;
+        }
+
+        const matchesAllGuesses = guesses.every(({ guess, score }) => {
+          let correctPositions = 0;
+          for (let i = 0; i < 5; i++) {
+            if (sequence[i] === guess[i]) correctPositions++;
+          }
+          return correctPositions === score;
+        });
+
+        if (matchesAllGuesses) candidates.push(sequence);
+      }
+
+      return candidates;
+    }
+
+    function render() {
+      const candidates = getCandidates();
+
+      statusElement.textContent = candidates.length
+        ? `${candidates.length} possible ${candidates.length === 1 ? "sequence" : "sequences"}`
+        : "No sequences match. Check the confirmed actions and guess scores.";
+
+      candidatesElement.replaceChildren();
+      for (const sequence of candidates) {
+        const item = document.createElement("li");
+        item.className = "sequence";
+        item.textContent = `${sequence}  (${[...sequence].map(
+          action => action === "b" ? "Bow" : "Clap"
+        ).join(", ")})`;
+        candidatesElement.append(item);
+      }
+
+      renderHistory();
+    }
+
+    function renderHistory() {
+      historyElement.replaceChildren();
+
+      if (guesses.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "muted";
+        empty.textContent = "No guesses entered yet.";
+        historyElement.append(empty);
+        return;
+      }
+
+      guesses.forEach(({ guess, score }, index) => {
+        const row = document.createElement("div");
+        row.className = "guess-row";
+
+        const description = document.createElement("span");
+        description.innerHTML = "";
+        description.textContent = `${guess} — ${score} correct position${score === 1 ? "" : "s"}`;
+
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.textContent = "Remove";
+        removeButton.setAttribute("aria-label", `Remove guess ${guess}`);
+        removeButton.addEventListener("click", () => {
+          guesses.splice(index, 1);
+          render();
+        });
+
+        row.append(description, removeButton);
+        historyElement.append(row);
+      });
+    }
+
+    document.querySelector("#guess-form").addEventListener("submit", event => {
+      event.preventDefault();
+      error.textContent = "";
+
+      const guess = guessInput.value.toLowerCase().replace(/\s/g, "");
+      const score = Number(scoreInput.value);
+
+      if (!/^[bc]{5}$/.test(guess)) {
+        error.textContent = "Enter exactly five characters, using only b and c.";
+        return;
+      }
+      if (!Number.isInteger(score) || score < 0 || score > 5) {
+        error.textContent = "The score must be a whole number from 0 to 5.";
+        return;
+      }
+
+      guesses.push({ guess, score });
+      guessInput.value = "";
+      guessInput.focus();
+      render();
+    });
+
+    firstSelect.addEventListener("change", render);
+    secondSelect.addEventListener("change", render);
+
+    document.querySelector("#reset").addEventListener("click", () => {
+      guesses.length = 0;
+      firstSelect.value = "?";
+      secondSelect.value = "?";
+      error.textContent = "";
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
