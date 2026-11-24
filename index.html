@@ -62,7 +62,12 @@
       list-style: none;
     }
 
-    #candidates li, .guess-row {
+    #candidates button {
+      width: 100%;
+      text-align: left;
+    }
+
+    .guess-row {
       padding: 0.55rem;
       border-radius: 5px;
       background: #303030;
@@ -199,10 +204,19 @@
       candidatesElement.replaceChildren();
       for (const sequence of candidates) {
         const item = document.createElement("li");
-        item.className = "sequence";
-        item.textContent = `${sequence}  (${[...sequence].map(
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "sequence";
+        button.textContent = `${sequence}  (${[...sequence].map(
           action => action === "b" ? "Bow" : "Clap"
         ).join(", ")})`;
+        button.setAttribute("aria-label", `Use sequence ${sequence} as the next guess`);
+        button.addEventListener("click", () => {
+          guessInput.value = sequence;
+          error.textContent = "";
+          guessInput.focus();
+        });
+        item.append(button);
         candidatesElement.append(item);
       }
 
